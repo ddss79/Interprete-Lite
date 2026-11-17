@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Traductor">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1d22" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Traductor</title>
+<!--
+  Translator Lite — DS-Lab
+  Very simple two-way speech translator for iPhone / iPad (Soniox).
+  The API key is NOT in this file. It is stored on each device through the hidden setup screen:
+  press and hold the title at the top for 3 seconds (or open the address with #setup).
+-->
+<style>
+  :root { --bg:#f4f5f7; --card:#ffffff; --fg:#15181c; --dim:#68707b; --accent:#0f766e; --soft:#e3f1ef;
+          --bubA:#ffffff; --bubB:#e7f0fb; --line:#e2e5e9; --rec:#d93025; --ring:rgba(217,48,37,.22);
+          --err-bg:#fdeceb; --err-fg:#7c1d16; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1114; --card:#1a1d22; --fg:#f2f3f5; --dim:#9ca3ad; --accent:#2bb3a3; --soft:#16312e;
+            --bubA:#1e2228; --bubB:#172739; --line:#2a2e35; --rec:#ff5a4e; --ring:rgba(255,90,78,.25);
+            --err-bg:#3a1714; --err-fg:#ffd9d5; }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
+    font-family:-apple-system, "Hiragino Sans", "BIZ UDPGothic", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust:100%; touch-action:manipulation; }
+  body { display:flex; flex-direction:column; height:100vh; height:100dvh; }
+  button { font:inherit; color:inherit; cursor:pointer; }
+
+  header { padding:calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
+    background:var(--card); border-bottom:1px solid var(--line); }
+  #title { text-align:center; font-weight:600; font-size:17px; margin:0 0 10px; color:var(--dim);
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  #langs { display:flex; align-items:center; gap:8px; max-width:600px; margin:0 auto; }
+  .pill { flex:1; min-width:0; min-height:52px; padding:0 12px; border:0; border-radius:26px; background:var(--soft);
+    font-size:19px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #swap { flex:none; width:52px; height:52px; border:0; border-radius:50%; background:transparent; color:var(--accent); font-size:24px; }
+  body.running .pill, body.running #swap { opacity:.45; }
+
+  main { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:16px calc(16px + env(safe-area-inset-right)) 16px calc(16px + env(safe-area-inset-left));
+    display:flex; flex-direction:column; gap:12px; }
+  #empty { margin:auto; text-align:center; color:var(--dim); font-size:21px; line-height:1.5; white-space:pre-line; padding:0 12px; }
+  .b { max-width:88%; padding:12px 16px; border-radius:20px; background:var(--bubA); box-shadow:0 1px 2px rgba(0,0,0,.08); }
+  .b.l { align-self:flex-start; border-bottom-left-radius:6px; }
+  .b.r { align-self:flex-end; background:var(--bubB); border-bottom-right-radius:6px; }
+  .tr { font-size:clamp(23px, 5.6vw, 36px); line-height:1.3; font-weight:600; overflow-wrap:anywhere; }
+  .or { margin-top:6px; font-size:clamp(15px, 3.7vw, 19px); line-height:1.35; color:var(--dim); overflow-wrap:anywhere; }
+  .p { opacity:.5; font-weight:400; }
+  .wait { opacity:.4; }
+
+  footer { padding:12px 16px calc(14px + env(safe-area-inset-bottom)); background:var(--card); border-top:1px solid var(--line);
+    display:flex; flex-direction:column; align-items:center; gap:8px; }
+  #msg { display:none; max-width:600px; padding:10px 14px; border-radius:12px; background:var(--err-bg); color:var(--err-fg);
+    font-size:17px; line-height:1.4; text-align:center; }
+  #msg.show { display:block; }
+  #mic { width:88px; height:88px; border:0; border-radius:50%; background:var(--accent); color:#fff; display:grid; place-items:center;
+    box-shadow:0 0 0 calc(var(--lvl, 0) * 18px) var(--ring); transition:background .2s, box-shadow .08s; }
+  #mic svg { width:40px; height:40px; }
+  #mic.on { background:var(--rec); }
+  #mic.busy { opacity:.7; }
+  #hint { min-height:1.4em; font-size:17px; color:var(--dim); text-align:center; }
+
+  dialog { border:0; border-radius:16px; padding:0; background:var(--card); color:var(--fg); width:min(420px, calc(100vw - 32px)); max-height:80vh; }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  .sheet { padding:16px; }
+  .sheet h2 { margin:4px 4px 12px; font-size:19px; }
+  #langlist button { display:block; width:100%; min-height:52px; padding:0 14px; margin:0 0 6px; border:0; border-radius:12px;
+    background:var(--bg); font-size:19px; text-align:left; }
+  #langlist button.sel { background:var(--soft); font-weight:700; }
+  #setup label { display:block; margin:10px 4px 4px; font-size:15px; color:var(--dim); }
+  #setup input { width:100%; min-height:46px; padding:8px 12px; font-size:16px; border:1px solid var(--line); border-radius:10px;
+    background:var(--bg); color:var(--fg); }
+  #setup .btns { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  #setup .btns button { flex:1 1 40%; min-height:46px; border:0; border-radius:10px; background:var(--bg); font-size:16px; }
+  #setup .btns .main { background:var(--accent); color:#fff; font-weight:600; }
+  #setupres { margin:10px 4px 0; min-height:1.3em; font-size:15px; }
+  #setup .note { margin:12px 4px 0; font-size:13px; color:var(--dim); line-height:1.4; }
+</style>
+</head>
+<body>
+<header>
+  <div id="title">Traductor</div>
+  <div id="langs">
+    <button class="pill" id="langA"></button>
+    <button id="swap" aria-label="Swap">⇄</button>
+    <button class="pill" id="langB"></button>
+  </div>
+</header>
+<main id="conv"><div id="empty"></div></main>
+<footer>
+  <div id="msg"></div>
+  <button id="mic" aria-label="Micrófono"></button>
+  <div id="hint"></div>
+</footer>
+
+<dialog id="picker"><div class="sheet"><h2 id="pickTitle"></h2><div id="langlist"></div></div></dialog>
+
+<!-- Hidden setup screen (for the person who installs the app). Open: hold the title 3 s, or add #setup to the address. -->
+<dialog id="setup"><div class="sheet">
+  <h2>Configuración</h2>
+  <label for="skey">Clave API de Soniox</label>
+  <input id="skey" type="password" autocomplete="off" placeholder="pega la clave aquí">
+  <label for="swho">Nombre para avisar si algo falla (opcional)</label>
+  <input id="swho" type="text" autocomplete="off" placeholder="p. ej. Daniel">
+  <div class="btns">
+    <button class="main" id="ssave">Guardar</button>
+    <button id="stest">Probar clave</button>
+    <button id="sdel">Borrar clave</button>
+    <button id="sclose">Cerrar</button>
+  </div>
+  <div id="setupres"></div>
+  <div class="note">La clave se guarda solo en este dispositivo. Si la app está instalada en la pantalla de inicio,
+    configúrala desde la app instalada (no desde Safari): iOS guarda sus datos por separado.<br>
+    Translator Lite <span id="sver"></span> · © 2026 DS-Lab</div>
+</div></dialog>
+
+<script>
+"use strict";
+const VERSION = "1.0";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+
+// ---------- storage (prefix "lite_": the full Seminar Interpreter may share this web address' storage) ----------
+const LS = {
+  get: k => { try { return localStorage.getItem("lite_" + k); } catch(e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem("lite_" + k, v); } catch(e) {} },
+  del: k => { try { localStorage.removeItem("lite_" + k); } catch(e) {} },
+};
+
+// ---------- languages (native names, readable by anyone) ----------
+const LANGS = { es:"Español", ja:"日本語", en:"English", pt:"Português", zh:"中文", ko:"한국어", fr:"Français", de:"Deutsch", it:"Italiano" };
+let A = LANGS[LS.get("a")] ? LS.get("a") : "es";
+let B = LANGS[LS.get("b")] ? LS.get("b") : "ja";
+if (A === B) B = A === "ja" ? "es" : "ja";
+
+// ---------- interface texts, in the language of the iPhone ----------
+const TXT = {
+  es: { title:"Traductor", tap:"Toca el micrófono para empezar", listening:"Escuchando… toca para parar", connecting:"Conectando…",
+        reconnect:"Reconectando…", empty:"Toca el micrófono y habla.\nTraduce en los dos sentidos.", choose:"Elige el idioma",
+        offline:"No hay conexión a internet.", mic:"Hay que permitir el micrófono: Ajustes › Safari › Micrófono › Permitir.",
+        notset:"La app todavía no está configurada. Avisa a {who}.", broken:"Ahora mismo no puede traducir. Avisa a {who}.", who:"quien te la instaló" },
+  ja: { title:"翻訳", tap:"マイクをタップして開始", listening:"聞いています… タップで停止", connecting:"接続中…",
+        reconnect:"再接続中…", empty:"マイクをタップして話してください。\n両方向に翻訳します。", choose:"言語を選択",
+        offline:"インターネットに接続されていません。", mic:"マイクを許可してください：設定 › Safari › マイク › 許可。",
+        notset:"アプリはまだ設定されていません。{who}に連絡してください。", broken:"今は翻訳できません。{who}に連絡してください。", who:"設定した人" },
+  en: { title:"Translator", tap:"Tap the microphone to start", listening:"Listening… tap to stop", connecting:"Connecting…",
+        reconnect:"Reconnecting…", empty:"Tap the microphone and speak.\nIt translates both ways.", choose:"Choose the language",
+        offline:"No internet connection.", mic:"Please allow the microphone: Settings › Safari › Microphone › Allow.",
+        notset:"The app is not set up yet. Tell {who}.", broken:"It can't translate right now. Tell {who}.", who:"the person who installed it" },
+};
+const T = TXT[(navigator.language || "es").slice(0, 2)] || TXT.en;
+document.documentElement.lang = (navigator.language || "es").slice(0, 2);
+const who = () => LS.get("who") || T.who;
+$("title").textContent = T.title;
+$("empty").textContent = T.empty;
+$("pickTitle").textContent = T.choose;
+$("sver").textContent = VERSION;
+
+const ICON_MIC = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>`;
+const ICON_STOP = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
+
+// ---------- screen state ----------
+let running = false;
+function setState(s){   // idle | connecting | listening | reconnect
+  const mic = $("mic");
+  mic.classList.toggle("on", s !== "idle");
+  mic.classList.toggle("busy", s === "connecting" || s === "reconnect");
+  mic.innerHTML = s === "idle" ? ICON_MIC : ICON_STOP;
+  $("hint").textContent = { idle:T.tap, connecting:T.connecting, listening:T.listening, reconnect:T.reconnect }[s];
+  document.body.classList.toggle("running", s !== "idle");
+  if (s === "idle") mic.style.setProperty("--lvl", 0);
+}
+function showMsg(text){ $("msg").textContent = text || ""; $("msg").classList.toggle("show", !!text); }
+
+function drawLangs(){ $("langA").textContent = LANGS[A]; $("langB").textContent = LANGS[B]; }
+drawLangs(); setState("idle");
+
+// ---------- language picker ----------
+let pickSlot = "a";
+function openPicker(slot){
+  if (running) return;
+  pickSlot = slot; const cur = slot === "a" ? A : B;
+  $("langlist").innerHTML = Object.entries(LANGS).map(([k, v]) => `<button data-l="${k}" class="${k === cur ? "sel" : ""}">${v}</button>`).join("");
+  $("picker").showModal();
+}
+$("langlist").onclick = e => {
+  const l = e.target.closest("button")?.dataset.l; if (!l) return;
+  if (pickSlot === "a") { if (l === B) B = A; A = l; } else { if (l === A) A = B; B = l; }
+  LS.set("a", A); LS.set("b", B); drawLangs(); $("picker").close();
+};
+$("picker").onclick = e => { if (e.target === $("picker")) $("picker").close(); };   // tap outside closes
+$("langA").onclick = () => openPicker("a");
+$("langB").onclick = () => openPicker("b");
+$("swap").onclick = () => { if (running) return; [A, B] = [B, A]; LS.set("a", A); LS.set("b", B); drawLangs(); };
+
+// ---------- conversation bubbles ----------
+// Two-way mode: Soniox detects which of the two languages is spoken and translates into the other.
+// Language A speech goes on the left, language B on the right. Big text = translation, small = what was said.
+let cur = null; const bubbles = [];
+function newBubble(side){
+  if (cur) { cur.orP = cur.trP = ""; draw(cur); }
+  $("empty").style.display = "none";
+  const el = document.createElement("div"); el.className = "b " + (side === A ? "l" : "r");
+  $("conv").appendChild(el);
+  cur = { side, or:"", tr:"", orP:"", trP:"", ended:false, el };
+  bubbles.push(cur);
+  while (bubbles.length > 40) bubbles.shift().el.remove();
+}
+function draw(b){
+  const tr = b.tr || b.trP ? `${esc(b.tr)}<span class="p">${esc(b.trP)}</span>` : `<span class="wait">…</span>`;
+  b.el.innerHTML = `<div class="tr">${tr}</div><div class="or">${esc(b.or)}<span class="p">${esc(b.orP)}</span></div>`;
+  const c = $("conv"); c.scrollTop = c.scrollHeight;
+}
+function onTokens(tokens){
+  let orP = "", trP = "";
+  for (const t of tokens) {
+    if (t.text === "<end>") { if (cur) cur.ended = true; continue; }
+    if (!t.text || t.text === "<fin>") continue;
+    if (t.translation_status === "translation") {
+      if (!cur) newBubble(t.language === A ? B : A);
+      if (t.is_final) cur.tr += t.text; else trP += t.text;
+    } else {
+      const lang = (t.language === A || t.language === B) ? t.language : (cur ? cur.side : A);
+      if (!cur || cur.ended || (lang !== cur.side && (cur.or || cur.tr))) newBubble(lang);
+      if (t.is_final) cur.or += t.text; else orP += t.text;
+    }
+  }
+  if (cur) { cur.orP = orP; cur.trP = trP; draw(cur); }
+}
+
+// ---------- Soniox connection ----------
+const WS_URL = "wss://stt-rt.soniox.com/transcribe-websocket", RATE = 16000;
+let ws = null, opened = false, failCount = 0, modelRetried = false;
+let pending = []; const MAX_PENDING = 100;   // 10 s of audio kept while (re)connecting
+
+// Use the newest real-time model (checked at most once a week; works with the default if the check fails).
+async function pickModel(key){
+  const cached = LS.get("model"), t = +LS.get("model_t") || 0;
+  if (cached && Date.now() - t < 7 * 864e5) return cached;
+  try {
+    const c = new AbortController(); const tm = setTimeout(() => c.abort(), 4000);
+    const r = await fetch("https://api.soniox.com/v1/models", { headers:{ Authorization:"Bearer " + key }, signal:c.signal });
+    clearTimeout(tm);
+    if (r.ok) {
+      const j = await r.json(), list = j.models || j.data || [];
+      const ids = list.map(m => typeof m === "string" ? m : (m.id || m.name || "")).filter(id => /^stt-rt-v\d+$/.test(id))
+        .sort((a, b) => +a.match(/\d+/)[0] - +b.match(/\d+/)[0]);
+      if (ids.length) { LS.set("model", ids[ids.length - 1]); LS.set("model_t", Date.now()); return ids[ids.length - 1]; }
+    }
+  } catch(e) {}
+  return cached || "stt-rt-v5";
+}
+
+function connect(key, model){
+  opened = false;
+  const sock = ws = new WebSocket(WS_URL);
+  sock.binaryType = "arraybuffer";
+  sock.onopen = () => {
+    sock.send(JSON.stringify({
+      api_key:key, model, audio_format:"pcm_s16le", sample_rate:RATE, num_channels:1,
+      language_hints:[A, B], enable_endpoint_detection:true,
+      translation:{ type:"two_way", language_a:A, language_b:B }
+    }));
+    opened = true; failCount = 0; flushPending(); setState("listening"); showMsg("");
+  };
+  sock.onmessage = e => {
+    let r; try { r = JSON.parse(e.data); } catch(_) { return; }
+    if (r.error_code) { if (sock === ws && running) onError(key, r.error_code, r.error_message); return; }
+    onTokens(r.tokens || []);
+    if (r.finished) sock.close();
+  };
+  sock.onclose = () => {
+    if (sock !== ws || !running) return;
+    if (!opened && navigator.onLine && ++failCount >= 4) { showMsg(T.broken.replace("{who}", who())); stop(); return; }
+    setState("reconnect");
+    setTimeout(() => { if (running) connect(key, model); }, navigator.onLine ? 1000 : 3000);
+  };
+}
+async function onError(key, code, message){
+  console.error("Soniox error:", code, message);
+  if (/model/i.test(`${code} ${message}`) && !modelRetried) {   // model retired: look for the new one once
+    modelRetried = true; LS.del("model"); LS.del("model_t");
+    const m = await pickModel(key); const old = ws; ws = null; try { old.close(); } catch(e) {}
+    if (running) connect(key, m); return;
+  }
+  showMsg(T.broken.replace("{who}", who())); stop();
+}
+function sendPCM(pcm){ ws.send(pcm.buffer); }
+function flushPending(){ while (pending.length && ws && ws.readyState === 1) sendPCM(pending.shift()); }
+
+// ---------- microphone ----------
+let ctx = null, stream = null, node = null, rsBuf = new Float32Array(0), buf = new Float32Array(0);
+function resample(data, inRate){
+  if (inRate === RATE) return data;
+  const all = new Float32Array(rsBuf.length + data.length); all.set(rsBuf); all.set(data, rsBuf.length);
+  const ratio = inRate / RATE, n = Math.floor(all.length / ratio), out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor(i * ratio), b = Math.min(all.length, Math.floor((i + 1) * ratio));
+    let s = 0; for (let j = a; j < b; j++) s += all[j]; out[i] = s / Math.max(1, b - a);
+  }
+  rsBuf = all.slice(Math.floor(n * ratio));
+  return out;
+}
+function toPCM16(f){ const o = new Int16Array(f.length); for (let i = 0; i < f.length; i++) { const s = Math.max(-1, Math.min(1, f[i])); o[i] = s < 0 ? s * 0x8000 : s * 0x7fff; } return o; }
+
+// ---------- keep the screen on while translating (iOS stops the microphone when the screen locks) ----------
+let wakeLock = null;
+async function keepAwake(on){
+  try {
+    if (on) { if ("wakeLock" in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); } }
+    else if (wakeLock) { const w = wakeLock; wakeLock = null; await w.release(); }
+  } catch(e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !running) return;
+  if (stream && stream.getAudioTracks().some(t => t.readyState === "ended")) { stop(); return; }   // iOS took the microphone away
+  keepAwake(true);
+});
+
+// ---------- start / stop ----------
+async function start(){
+  const key = LS.get("key");
+  if (!key) { showMsg(T.notset.replace("{who}", who())); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!ctx || ctx.state === "closed") ctx = new AC();   // must be created inside the tap on iPhone/iPad
+  try { ctx.resume(); } catch(e) {}
+  showMsg(""); setState("connecting"); running = true;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+  } catch(e) { running = false; setState("idle"); showMsg(T.mic); return; }
+  if (!running) { stream.getTracks().forEach(t => t.stop()); return; }   // stopped while asking
+  keepAwake(true);
+  pending = []; buf = new Float32Array(0); rsBuf = new Float32Array(0); modelRetried = false; failCount = 0;
+  const inRate = ctx.sampleRate, chunk = RATE / 10;   // 100 ms
+  node = ctx.createScriptProcessor(4096, 1, 1);
+  const mute = ctx.createGain(); mute.gain.value = 0;
+  ctx.createMediaStreamSource(stream).connect(node); node.connect(mute); mute.connect(ctx.destination);
+  node.onaudioprocess = ev => {
+    const raw = new Float32Array(ev.inputBuffer.getChannelData(0));
+    let peak = 0; for (const v of raw) peak = Math.max(peak, Math.abs(v));
+    $("mic").style.setProperty("--lvl", Math.min(1, peak * 3).toFixed(2));
+    const data = resample(raw, inRate);
+    const nb = new Float32Array(buf.length + data.length); nb.set(buf); nb.set(data, buf.length); buf = nb;
+    while (buf.length >= chunk) {
+      const pcm = toPCM16(buf.slice(0, chunk)); buf = buf.slice(chunk);
+      if (ws && ws.readyState === 1 && opened) { flushPending(); sendPCM(pcm); }
+      else { pending.push(pcm); if (pending.length > MAX_PENDING) pending.shift(); }
+    }
+  };
+  const key2 = key, model = await pickModel(key);
+  if (running) connect(key2, model);
+}
+function stop(){
+  running = false; keepAwake(false); setState("idle");
+  try { stream && stream.getTracks().forEach(t => t.stop()); } catch(e) {}
+  try { if (node) { node.onaudioprocess = null; node.disconnect(); } } catch(e) {}
+  try { ctx && ctx.state !== "closed" && ctx.close(); } catch(e) {}
+  stream = null; node = null; pending = [];
+  // Let Soniox send the last words (max 3 s), then close.
+  const s = ws; ws = null;
+  if (s && s.readyState === 1) { try { s.send(""); } catch(e) {} setTimeout(() => { try { s.close(); } catch(e) {} }, 3000); }
+  else { try { s && s.close(); } catch(e) {} }
+  if (cur) { cur.ended = true; }
+}
+$("mic").onclick = () => { running ? stop() : start(); };
+window.addEventListener("offline", () => showMsg(T.offline));
+window.addEventListener("online", () => { if ($("msg").textContent === T.offline) showMsg(""); });
+
+// ---------- hidden setup screen ----------
+function openSetup(){
+  if (running) stop();
+  $("skey").value = LS.get("key") || ""; $("swho").value = LS.get("who") || ""; $("setupres").textContent = "";
+  $("setup").showModal();
+}
+$("ssave").onclick = () => {
+  const k = $("skey").value.trim(), w = $("swho").value.trim();
+  if (k) LS.set("key", k); if (w) LS.set("who", w); else LS.del("who");
+  LS.del("model"); LS.del("model_t");
+  $("setupres").textContent = k ? "✓ Guardado en este dispositivo." : "Falta la clave.";
+  if (k) showMsg("");
+};
+$("stest").onclick = async () => {
+  const k = $("skey").value.trim(); if (!k) { $("setupres").textContent = "Falta la clave."; return; }
+  $("setupres").textContent = "Comprobando…";
+  try {
+    const r = await fetch("https://api.soniox.com/v1/models", { headers:{ Authorization:"Bearer " + k } });
+    $("setupres").textContent = r.ok ? "✓ La clave funciona." : (r.status === 401 || r.status === 403) ? "✗ Soniox rechaza la clave." : "? Soniox respondió " + r.status + ".";
+  } catch(e) { $("setupres").textContent = "? No se pudo comprobar (¿sin internet?). Prueba a traducir."; }
+};
+$("sdel").onclick = () => { LS.del("key"); $("skey").value = ""; $("setupres").textContent = "Clave borrada de este dispositivo."; };
+$("sclose").onclick = () => { $("setup").close(); if (location.hash === "#setup") history.replaceState(null, "", location.pathname + location.search); };
+// Press and hold the title for 3 seconds
+let holdTimer = null;
+const holdStart = e => { clearTimeout(holdTimer); holdTimer = setTimeout(openSetup, 3000); };
+const holdEnd = () => clearTimeout(holdTimer);
+for (const ev of ["touchstart", "mousedown"]) $("title").addEventListener(ev, holdStart, { passive:true });
+for (const ev of ["touchend", "touchcancel", "touchmove", "mouseup", "mouseleave"]) $("title").addEventListener(ev, holdEnd, { passive:true });
+if (location.hash === "#setup") openSetup();
+window.addEventListener("hashchange", () => { if (location.hash === "#setup") openSetup(); });
+</script>
+</body>
+</html>
