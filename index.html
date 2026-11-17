@@ -83,6 +83,28 @@
   #setup .btns .main { background:var(--accent); color:#fff; font-weight:600; }
   #setupres { margin:10px 4px 0; min-height:1.3em; font-size:15px; }
   #setup .note { margin:12px 4px 0; font-size:13px; color:var(--dim); line-height:1.4; }
+
+  /* Phone turned sideways (little height): languages in one thin bar, microphone in a narrow column on the right,
+     so the conversation keeps most of the screen. */
+  @media (orientation: landscape) and (max-height: 520px) {
+    body { display:grid; grid-template-columns:1fr auto; grid-template-rows:auto 1fr; }
+    header { grid-column:1; grid-row:1; display:flex; align-items:center; gap:12px;
+      padding:calc(6px + env(safe-area-inset-top)) 12px 6px calc(12px + env(safe-area-inset-left)); }
+    #title { margin:0; font-size:14px; flex:none; }
+    #langs { flex:1; max-width:520px; }
+    .pill { min-height:40px; font-size:17px; }
+    #swap { width:40px; height:40px; font-size:20px; }
+    main { grid-column:1; grid-row:2; padding:10px 12px 10px calc(12px + env(safe-area-inset-left)); gap:8px; }
+    .tr { font-size:clamp(20px, 3.2vw, 28px); }
+    .or { font-size:clamp(13px, 2vw, 16px); }
+    footer { grid-column:2; grid-row:1 / 3; width:118px; justify-content:center; gap:6px;
+      padding:8px calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) 8px;
+      border-top:0; border-left:1px solid var(--line); }
+    #mic { width:64px; height:64px; }
+    #mic svg { width:30px; height:30px; }
+    #hint { font-size:13px; line-height:1.3; }
+    #msg { font-size:13px; padding:8px; }
+  }
 </style>
 </head>
 <body>
